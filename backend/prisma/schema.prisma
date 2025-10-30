@@ -1,0 +1,264 @@
+# Prisma Database Schema
+# This file is the main configuration for your database schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  username    String   @unique
+  firstName   String
+  lastName    String
+  avatar      String?
+  bio         String?
+  phone       String?
+  dateOfBirth DateTime?
+  role        UserRole @default(USER)
+  
+  // Authentication
+  password    String
+  isVerified  Boolean  @default(false)
+  verificationToken String?
+  resetPasswordToken String?
+  resetPasswordExpires DateTime?
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lastLoginAt DateTime?
+  
+  // Relations
+  organizedEvents Event[] @relation("EventOrganizer")
+  eventAttendees  EventAttendee[]
+  eventComments   EventComment[]
+  eventRatings    EventRating[]
+  notifications   Notification[]
+  userPreferences UserPreference?
+  
+  @@map("users")
+}
+
+model Event {
+  id          String      @id @default(cuid())
+  title       String
+  description String
+  slug        String      @unique
+  
+  // Event Details
+  startDateTime DateTime
+  endDateTime   DateTime
+  timezone      String
+  isAllDay      Boolean   @default(false)
+  
+  // Location
+  isOnline      Boolean   @default(false)
+  venue         String?
+  address       String?
+  city          String?
+  state         String?
+  country       String?
+  latitude      Float?
+  longitude     Float?
+  
+  // Event Settings
+  category      EventCategory
+  tags          String[]
+  maxAttendees  Int?
+  isPublic      Boolean   @default(true)
+  requiresApproval Boolean @default(false)
+  
+  // Pricing
+  isFree        Boolean   @default(true)
+  ticketPrice   Float?
+  currency      String    @default("USD")
+  
+  // Images
+  coverImage    String?
+  images        String[]
+  
+  // Status
+  status        EventStatus @default(DRAFT)
+  
+  // Organizer
+  organizerId   String
+  organizer     User      @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  publishedAt   DateTime?
+  
+  // Relations
+  attendees     EventAttendee[]
+  comments      EventComment[]
+  ratings       EventRating[]
+  notifications Notification[]
+  
+  @@map("events")
+}
+
+model EventAttendee {
+  id        String           @id @default(cuid())
+  status    AttendeeStatus   @default(PENDING)
+  
+  // Relations
+  eventId   String
+  event     Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Additional Info
+  ticketId  String?
+  notes     String?
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([eventId, userId])
+  @@map("event_attendees")
+}
+
+model EventComment {
+  id        String   @id @default(cuid())
+  content   String
+  
+  // Relations
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("event_comments")
+}
+
+model EventRating {
+  id        String   @id @default(cuid())
+  rating    Int      // 1-5 stars
+  review    String?
+  
+  // Relations
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([eventId, userId])
+  @@map("event_ratings")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  
+  // Relations
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId   String?
+  event     Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  
+  @@map("notifications")
+}
+
+model UserPreference {
+  id     String @id @default(cuid())
+  
+  // Notification Preferences
+  emailNotifications     Boolean @default(true)
+  pushNotifications      Boolean @default(true)
+  eventReminders         Boolean @default(true)
+  eventRecommendations   Boolean @default(true)
+  marketingEmails        Boolean @default(false)
+  
+  // Display Preferences
+  theme                  String  @default("light") // light, dark, system
+  language               String  @default("en")
+  timezone               String  @default("UTC")
+  
+  // Privacy Settings
+  profileVisibility      String  @default("public") // public, friends, private
+  showEmail              Boolean @default(false)
+  showPhone              Boolean @default(false)
+  
+  // Relations
+  userId    String @unique
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("user_preferences")
+}
+
+// Enums
+enum UserRole {
+  USER
+  ORGANIZER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum EventCategory {
+  CONFERENCE
+  WORKSHOP
+  SEMINAR
+  NETWORKING
+  SOCIAL
+  SPORTS
+  ENTERTAINMENT
+  EDUCATION
+  BUSINESS
+  TECHNOLOGY
+  HEALTH
+  ARTS
+  MUSIC
+  FOOD
+  TRAVEL
+  OTHER
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+}
+
+enum AttendeeStatus {
+  PENDING
+  CONFIRMED
+  DECLINED
+  WAITLIST
+}
+
+enum NotificationType {
+  EVENT_REMINDER
+  EVENT_UPDATE
+  EVENT_CANCELLED
+  NEW_ATTENDEE
+  ATTENDEE_LEFT
+  EVENT_RECOMMENDATION
+  SYSTEM_ANNOUNCEMENT
+}
